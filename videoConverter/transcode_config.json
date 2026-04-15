@@ -1,0 +1,25 @@
+{
+    "video_remux": {
+        "c:v": "copy"
+    },
+    "video_transcode": {
+        "c:v": "libx264",
+        "preset":"fast",
+        "crf": "18"
+    },
+    "audio_remux": {
+        "c:a": "copy"
+    },
+    "audio_transcode": {
+        "c:a": "aac",
+        "b:a": "192k"
+    },
+    "safe_codecs": { 
+        "video": ["h264", "avc"],
+        "audio": ["aac", "mp3", "flac"]
+    },
+    "extended_codecs": {
+        "video": ["hevc","h265","vp9", "av1"],
+        "audio": ["wav", "opus"]
+    }
+}
