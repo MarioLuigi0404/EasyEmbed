@@ -16,10 +16,10 @@
     },
     "safe_codecs": { 
         "video": ["h264", "avc"],
-        "audio": ["aac", "mp3", "flac"]
+        "audio": ["aac", "mp3"]
     },
     "extended_codecs": {
-        "video": ["hevc","h265","vp9", "av1"],
-        "audio": ["wav", "opus"]
+        "video": ["hevc","h265", "av1"],
+        "audio": ["wav", "flac", "opus"]
     }
 }
