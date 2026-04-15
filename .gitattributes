@@ -1,4 +1,2 @@
-# Autodetect text files
+# Auto detect text files and perform LF normalization
 * text=auto
-
-*.gif binary
