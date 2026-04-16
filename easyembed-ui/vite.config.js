@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  server: {
+  server: { // Proxy API requests to the FastAPI backend to avoid CORS issues during development - change this when deploying to production!!
     proxy: {
       "/upload": "http://127.0.0.1:8000",
       "/status": "http://127.0.0.1:8000",

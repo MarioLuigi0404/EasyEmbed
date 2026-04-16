@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uuid
 import threading
 from fastapi.staticfiles import StaticFiles
+import os
 
 from videoConverter.videoProcessing import processVideo
 
@@ -164,7 +165,20 @@ def startup_cleanup():
 
 @app.get("/files")
 def list_files():
-    files = []
-    for file in OUTPUT_DIR.glob("*"):
-        files.append(file.name)
-    return {"files": files}
+    files = list(Path("processed").glob("*"))
+    files.sort(key=lambda f: f.stat().st_mtime, reverse=True)  # Sort by modification time, newest first
+    return {"files": [f.name for f in files]}
+
+@app.delete("/files/{filename}")
+def delete_file(filename: str):
+    safe_name = Path(filename).name  # Prevent directory traversal
+
+    stored_path = OUTPUT_DIR / safe_name
+
+    if stored_path.exists():
+        try:
+            stored_path.unlink()
+            return {"status": "deleted", "file": safe_name}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to delete file: {e}")
+        

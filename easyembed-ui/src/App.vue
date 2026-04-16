@@ -27,11 +27,14 @@
 
     <p>{{ status }}</p>
 
+    <br>
+
     <h2>Processed Files</h2>
 
-    <div v-for="file in files" :key="file" style="margin-bottom: 20px;">
-      <p>{{ file }}</p>
+    <br>
 
+    <div v-for="file in files" :key="file" style="margin-bottom: 20px;">
+      
       <video
         v-if="file.endsWith('.mp4')"
         controls
@@ -39,10 +42,15 @@
         :src="`/media/${file}`"
       ></video>
 
+      <p>{{ file }}</p>
+
       <br>
 
       <button @click="copyLink(file)">
         Copy Link
+      </button>
+      <button @click="deleteFile(file)">
+        Delete
       </button>
     </div>
   </div>
@@ -116,7 +124,9 @@ export default {
 
         if (data.status === "completed") {
           clearInterval(interval)
-          this.status = "Completed!"
+          this.status = "Processing complete!"
+
+          await this.loadFiles() // Refresh file list after processing
         }
 
         if (data.status === "error") {
@@ -141,7 +151,20 @@ export default {
         .catch(err => {
           alert("Failed to copy link.")
         })
+        },
+      async deleteFile(file) {
+        const res = await fetch(`/files/${file}`, {
+          method: "DELETE"
+        })
+
+        if (!res.ok) {
+          this.status = ("Failed to delete file.")
+          return
         }
+
+        this.files = this.files.filter(f => f !== file)
+        this.status = "File deleted."
+      }
   }
 }
 </script>
