@@ -26,6 +26,25 @@
     </button>
 
     <p>{{ status }}</p>
+
+    <h2>Processed Files</h2>
+
+    <div v-for="file in files" :key="file" style="margin-bottom: 20px;">
+      <p>{{ file }}</p>
+
+      <video
+        v-if="file.endsWith('.mp4')"
+        controls
+        width="400"
+        :src="`/media/${file}`"
+      ></video>
+
+      <br>
+
+      <button @click="copyLink(file)">
+        Copy Link
+      </button>
+    </div>
   </div>
 </template>
 
@@ -35,8 +54,13 @@ export default {
     return {
       file: null,
       extended: false,
-      status: ""
+      status: "",
+      files: [] // For listing processed files
     }
+  },
+
+  mounted() {
+    this.loadFiles()
   },
 
   methods: {
@@ -52,10 +76,11 @@ export default {
 
       const formData = new FormData()
       formData.append("file", this.file)
+      formData.append("extended", this.extended)
 
       this.status = "Uploading..."
 
-      const res = await fetch("http://127.0.0.1:8000/upload", {
+      const res = await fetch("/upload", {
         method: "POST",
         body: formData
       })
@@ -73,10 +98,50 @@ export default {
       }
 
       const data = await res.json()
+      const jobId = data.job_id
 
       console.log(data)
       this.status = "Processing..."
-    }
+      this.pollJob(jobId)
+    },
+
+    pollJob(jobId) {
+      const interval = setInterval(async () => {
+        const res = await fetch(`/status/${jobId}`)
+        const data = await res.json()
+
+        if (data.status === "processing") {
+          this.status = `Processing... ${data.progress}%`
+        } 
+
+        if (data.status === "completed") {
+          clearInterval(interval)
+          this.status = "Completed!"
+        }
+
+        if (data.status === "error") {
+          clearInterval(interval)
+          this.status = `Error: ${data.error}`
+        }
+      }, 500)
+    },
+    async loadFiles() {
+      const res = await fetch("/files")
+      const data = await res.json()
+      this.files = data.files
+    },
+    copyLink(file) {
+      const base = window.location.origin
+      const url = `${base}/media/${file}`
+
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          alert("Link copied to clipboard!")
+        })
+        .catch(err => {
+          alert("Failed to copy link.")
+        })
+        }
   }
 }
 </script>

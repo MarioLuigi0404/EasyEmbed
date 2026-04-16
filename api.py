@@ -1,8 +1,11 @@
-from fastapi import FastAPI, HTTPException, Header, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Header, UploadFile, File
 import shutil
 from pydantic import BaseModel
 from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
+import uuid
+import threading
+from fastapi.staticfiles import StaticFiles
 
 from videoConverter.videoProcessing import processVideo
 
@@ -14,14 +17,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/media", StaticFiles(directory="processed"), name="media")
 
+jobs = {}  # In-memory job store for tracking processing status
 
 VIDEO_EXTENSIONS = {"mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "vob", "mts", "m2ts", "mpg", "mpeg", "mxf", "ts", "h264", "hevc", "yuv"}
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "bmp", "tiff", "jxr", "svg", "webp", "heic", "avif", "jxl"}
 SUPPORTED_EXTENSIONS = VIDEO_EXTENSIONS.union(IMAGE_EXTENSIONS)
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR = Path("processed")
+OUTPUT_DIR = Path("processed") # I think I hardcoded this in the video processing function, may need to refactor to use this variable instead
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 USER = { # Placeholder user for authentication testing
@@ -48,7 +53,7 @@ def login(request: loginRequest):
 
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), extended: bool = Form(False)):
 
     #get file extension
     file_ext = file.filename.split(".")[-1].lower()
@@ -60,29 +65,61 @@ async def upload_file(file: UploadFile = File(...)):
             detail=f"Unsupported file type: .{file_ext}"
             )
 
-    # Save uploaded file to disk
     file_path = UPLOAD_DIR / file.filename
 
+    job_id = str(uuid.uuid4())  # Generate unique job ID
+
+    # Save uploaded file to disk
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     # Prepare request for processing
     processRequest = ConvertRequest(
         input_file=str(file_path),
-        extended=False
+        extended=extended
     )
 
-    # Call processing function
-    convert(processRequest)
+    #init job state
+    jobs[job_id] = {
+        "staus": "queued",
+        "progress": 0,
+        "output": None
+    }
 
-    # Delete original file after processing
-    file_path.unlink(missing_ok=True)
+    #start background processing thread
+    threading.Thread(
+        target=process_job,
+        args=(job_id, processRequest, file_path)
+    ).start()
 
     return {
-        "filename": file.filename, 
-        "status": "uploaded and processed"
+        "job_id": job_id,
         }
 
+
+# process job handling
+def process_job(job_id: str, processRequest: ConvertRequest, file_path: Path):
+    try:
+        jobs[job_id]["status"] = "processing"
+        jobs[job_id]["progress"] = 50
+
+        # Call processing function
+        convert(processRequest)
+    
+        jobs[job_id]["status"] = "completed"
+        jobs[job_id]["progress"] = 100
+
+        # Delete original file after processing
+        file_path.unlink(missing_ok=True)
+    
+    except Exception as e:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = str(e)
+
+
+@app.get("/status/{job_id}")
+def get_status(job_id: str):
+    return jobs.get(job_id, {"status": "not_found"})
 
 
 class ConvertRequest(BaseModel):
@@ -112,3 +149,22 @@ def convert(request: ConvertRequest):
     
     
     return {"status": "done"}
+
+def cleanup_uploads():
+    for file in UPLOAD_DIR.glob("*"):
+        try:
+            file.unlink()
+        except Exception as e:
+            print(f"Failed to delete {file}: {e}")
+
+@app.on_event("startup")
+def startup_cleanup():
+    print("Cleaning upload folder...")
+    cleanup_uploads()
+
+@app.get("/files")
+def list_files():
+    files = []
+    for file in OUTPUT_DIR.glob("*"):
+        files.append(file.name)
+    return {"files": files}
