@@ -9,7 +9,9 @@ export default defineConfig({
       "/upload": "http://127.0.0.1:8000",
       "/status": "http://127.0.0.1:8000",
       "/files": "http://127.0.0.1:8000",
-      "/media": "http://127.0.0.1:8000"
+      "/media": "http://127.0.0.1:8000",
+      "/login": "http://127.0.0.1:8000",
+      "/me": "http://127.0.0.1:8000"
     }
   }
 })

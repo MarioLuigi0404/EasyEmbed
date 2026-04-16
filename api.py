@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Form, HTTPException, Header, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Header, UploadFile, File, Response, Request
 import shutil
 from pydantic import BaseModel
 from pathlib import Path
@@ -7,8 +7,13 @@ import uuid
 import threading
 from fastapi.staticfiles import StaticFiles
 import os
+from dotenv import load_dotenv
+from uuid import uuid4
 
 from videoConverter.videoProcessing import processVideo
+
+load_dotenv()
+sessions = set()
 
 app = FastAPI()
 app.add_middleware(
@@ -29,32 +34,38 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR = Path("processed") # I think I hardcoded this in the video processing function, may need to refactor to use this variable instead
 OUTPUT_DIR.mkdir(exist_ok=True)
+APP_USER = os.getenv("APP_USER")
+APP_PASS = os.getenv("APP_PASS")
 
-USER = { # Placeholder user for authentication testing
-    "username": "admin",
-    "password": "changeme"
-}
-
-
-
-class loginRequest(BaseModel):
-    username: str
-    password: str
 
 @app.post("/login")
-def login(request: loginRequest):
-    if request.username == USER["username"] and request.password == USER["password"]:
-        return {"token": "secret-token"}  # placeholder
-    else:
-        raise HTTPException(
-            status_code=401, 
-            detail="Invalid username or password"
-            )
+def login(response: Response, username: str = Form(...), password: str = Form(...)):
+    if username != APP_USER or password != APP_PASS:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    session_id = str(uuid4())
+    sessions.add(session_id)
 
+    response.set_cookie(
+        key="session",
+        value=session_id,
+        httponly=True,
+        samesite="lax"
+    )
+
+    return {"status": "ok"}
+
+def require_auth(request: Request):
+    session_id = request.cookies.get("session")
+    if not session_id or session_id not in sessions:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
 
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...), extended: bool = Form(False)):
+async def upload_file(file: UploadFile = File(...), extended: bool = Form(False), request: Request = None):
+
+    require_auth(request)
 
     #get file extension
     file_ext = file.filename.split(".")[-1].lower()
@@ -170,7 +181,10 @@ def list_files():
     return {"files": [f.name for f in files]}
 
 @app.delete("/files/{filename}")
-def delete_file(filename: str):
+def delete_file(filename: str, request: Request):
+
+    require_auth(request)
+    
     safe_name = Path(filename).name  # Prevent directory traversal
 
     stored_path = OUTPUT_DIR / safe_name
@@ -182,3 +196,10 @@ def delete_file(filename: str):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to delete file: {e}")
         
+
+@app.get("/me")
+def me(request: Request):
+    session = request.cookies.get("session")
+    if session in sessions:
+        return {"logged_in": True}
+    return {"logged_in": False}
