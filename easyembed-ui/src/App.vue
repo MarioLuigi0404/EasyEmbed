@@ -62,7 +62,7 @@ export default {
     return {
       file: null,
       extended: false,
-      status: "",
+      status: "Waiting for user input...",
       files: [] // For listing processed files
     }
   },
@@ -146,10 +146,10 @@ export default {
 
       navigator.clipboard.writeText(url)
         .then(() => {
-          alert("Link copied to clipboard!")
+          this.status = "Link copied to clipboard!"
         })
         .catch(err => {
-          alert("Failed to copy link.")
+          this.status = "Failed to copy link."
         })
         },
       async deleteFile(file) {
