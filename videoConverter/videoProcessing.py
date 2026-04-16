@@ -15,7 +15,7 @@ def processVideo(input_file, file_name, is_extended=False):
 
     settings = merge_settings(video_settings, audio_settings)
 
-    run_ffmpeg(input_file, f"uploads/{file_name}.mp4", settings)
+    run_ffmpeg(input_file, f"processed/{file_name}.mp4", settings)
 
 
 def choose_video_settings(codec, is_extended):
